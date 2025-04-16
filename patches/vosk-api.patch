@@ -1,18 +1,8 @@
 diff --git a/android/lib/build-vosk.sh b/android/lib/build-vosk.sh
-index c30f632..f0afa1c 100755
+index c30f632..040c21c 100755
 --- a/android/lib/build-vosk.sh
 +++ b/android/lib/build-vosk.sh
-@@ -15,8 +15,7 @@
- # limitations under the License.
- 
- if [ "x$ANDROID_NDK_HOME" == "x" ]; then
--    echo "ANDROID_NDK_HOME environment variable is undefined, define it with local.properties or with export"
--    exit 1
-+    ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/25.2.9519653"
- fi
- 
- if [ ! -d "$ANDROID_NDK_HOME" ]; then
-@@ -42,8 +41,8 @@ case $arch in
+@@ -42,8 +42,8 @@ case $arch in
            HOST=arm-linux-androideabi
            AR=llvm-ar
            RANLIB=llvm-ranlib
@@ -23,7 +13,7 @@ index c30f632..f0afa1c 100755
            ARCHFLAGS="-mfloat-abi=softfp -mfpu=neon"
            ;;
      arm64-v8a)
-@@ -51,8 +50,8 @@ case $arch in
+@@ -51,8 +51,8 @@ case $arch in
            HOST=aarch64-linux-android
            AR=llvm-ar
            RANLIB=llvm-ranlib
@@ -34,7 +24,7 @@ index c30f632..f0afa1c 100755
            ARCHFLAGS=""
            ;;
      x86_64)
-@@ -60,8 +59,8 @@ case $arch in
+@@ -60,8 +60,8 @@ case $arch in
            HOST=x86_64-linux-android
            AR=llvm-ar
            RANLIB=llvm-ranlib
@@ -45,7 +35,7 @@ index c30f632..f0afa1c 100755
            ARCHFLAGS=""
            ;;
      x86)
-@@ -69,8 +68,8 @@ case $arch in
+@@ -69,8 +69,8 @@ case $arch in
            HOST=i686-linux-android
            AR=llvm-ar
            RANLIB=llvm-ranlib
@@ -56,22 +46,24 @@ index c30f632..f0afa1c 100755
            ARCHFLAGS=""
            ;;
  esac
-@@ -79,57 +78,57 @@ mkdir -p $WORKDIR/local/lib
+@@ -79,57 +79,57 @@ mkdir -p $WORKDIR/local/lib
  
  # openblas first
  cd $WORKDIR
 -git clone -b v0.3.20 --single-branch https://github.com/xianyi/OpenBLAS
 -make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 -j 8
+-make -C OpenBLAS install PREFIX=$WORKDIR/local
 +git clone -b v0.3.20 --depth=1 https://github.com/xianyi/OpenBLAS
-+make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 -j$(nproc)
- make -C OpenBLAS install PREFIX=$WORKDIR/local
++make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 NO_SHARED=1 -j$(nproc)
++make -C OpenBLAS install PREFIX=$WORKDIR/local NO_SHARED=1
  
  # CLAPACK
  cd $WORKDIR
 -git clone -b v3.2.1  --single-branch https://github.com/alphacep/clapack
 +git clone -b v3.2.1 --depth=1 https://github.com/alphacep/clapack
  mkdir -p clapack/BUILD && cd clapack/BUILD
- cmake -DCMAKE_C_FLAGS="$ARCHFLAGS" -DCMAKE_C_COMPILER_TARGET=$HOST \
+-cmake -DCMAKE_C_FLAGS="$ARCHFLAGS" -DCMAKE_C_COMPILER_TARGET=$HOST \
++cmake -DCMAKE_C_FLAGS="$ARCHFLAGS -Wno-deprecated-non-prototype -Wno-shift-op-parentheses" -DCMAKE_C_COMPILER_TARGET=$HOST \
      -DCMAKE_C_COMPILER=$CC -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_AR=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/${OS_NAME}-x86_64/bin/$AR \
      -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
      -DCMAKE_CROSSCOMPILING=True ..
@@ -90,7 +82,8 @@ index c30f632..f0afa1c 100755
  cd openfst
  autoreconf -i
  CXX=$CXX CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --prefix=${WORKDIR}/local \
-     --enable-shared --enable-static --with-pic --disable-bin \
+-    --enable-shared --enable-static --with-pic --disable-bin \
++    --disable-shared --enable-static --with-pic --disable-bin \
      --enable-lookahead-fsts --enable-ngram-fsts --host=$HOST --build=x86-linux-gnu
 -make -j 8
 +make -j$(nproc)
@@ -101,8 +94,10 @@ index c30f632..f0afa1c 100755
 -git clone -b vosk-android --single-branch https://github.com/alphacep/kaldi
 +git clone -b vosk-android --depth=1 https://github.com/alphacep/kaldi
  cd $WORKDIR/kaldi/src
- CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --use-cuda=no \
-     --mathlib=OPENBLAS_CLAPACK --shared \
+-CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --use-cuda=no \
+-    --mathlib=OPENBLAS_CLAPACK --shared \
++CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING -Wno-unused-but-set-variable" ./configure --use-cuda=no \
++    --mathlib=OPENBLAS_CLAPACK --static \
      --android-incdir=${ANDROID_TOOLCHAIN_PATH}/sysroot/usr/include \
      --host=$HOST --openblas-root=${WORKDIR}/local \
      --fst-root=${WORKDIR}/local --fst-version=${OPENFST_VERSION}

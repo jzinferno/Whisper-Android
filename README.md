@@ -14,10 +14,11 @@ for abi in arm64-v8a armeabi-v7a x86_64 x86; do
 done
 ```
 
-## Build [vosk-cli](https://github.com/alphacep/vosk-api/tree/4bf3370826d32a21728cc9aa7d32364ad036ea73) with Android NDK r25c
+## Build [vosk-cli](https://github.com/alphacep/vosk-api/tree/4bf3370826d32a21728cc9aa7d32364ad036ea73) with Android NDK r27c
 
 ```bash
-export PATH=~/Android/Sdk/cmake/3.22.1/bin:~/Android/Sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+export ANDROID_NDK_HOME=/home/jzinferno/Android/Sdk/ndk/27.2.12479018
+export PATH=~/Android/Sdk/cmake/3.22.1/bin:$PATH
 
 # patch -p1 < .../vosk-api.patch
 cd android/lib
