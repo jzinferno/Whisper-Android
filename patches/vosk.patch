@@ -1,0 +1,119 @@
+diff --git a/src/Makefile b/src/Makefile
+index dc67217..ea67ba7 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -26,6 +26,9 @@ VOSK_SOURCES= \
+ 	vosk_api.cc \
+ 	postprocessor.cc
+ 
++VOSK_CLI_SOURCES= \
++	vosk-cli.cc
++
+ VOSK_HEADERS= \
+ 	recognizer.h \
+ 	language_model.h \
+@@ -104,11 +107,14 @@ ifeq ($(HAVE_CUDA), 1)
+     LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcuda -lcublas -lcusparse -lcudart -lcurand -lcufft -lcusolver -lnvToolsExt
+ endif
+ 
+-all: $(OUTDIR)/libvosk.$(EXT)
++all: $(OUTDIR)/libvosk.$(EXT) $(OUTDIR)/vosk-cli
+ 
+ $(OUTDIR)/libvosk.$(EXT): $(VOSK_SOURCES:%.cc=$(OUTDIR)/%.o) $(LIBS)
+ 	$(CXX) --shared -s -o $@ $^ $(LDFLAGS) $(EXTRA_LDFLAGS)
+ 
++$(OUTDIR)/vosk-cli: $(VOSK_SOURCES:%.cc=$(OUTDIR)/%.o) $(VOSK_CLI_SOURCES:%.cc=$(OUTDIR)/%.o) $(LIBS)
++	$(CXX) -Oz -s -o $@ $^ -llog -static-libstdc++ -flto -Wl,--gc-sections
++
+ $(OUTDIR)/%.o: %.cc $(VOSK_HEADERS)
+ 	$(CXX) $(CFLAGS) -c -o $@ $<
+ 
+diff --git a/src/vosk-cli.cc b/src/vosk-cli.cc
+new file mode 100644
+index 0000000..bee1fa7
+--- /dev/null
++++ b/src/vosk-cli.cc
+@@ -0,0 +1,83 @@
++#include <iostream>
++#include <fstream>
++#include <string>
++#include <cstring>
++#include <vector>
++#include "vosk_api.h"
++
++void print_text_only(const char* json) {
++    const char* text_marker = "\"text\" : \"";
++    const char* text_start = strstr(json, text_marker);
++
++    if (text_start) {
++        text_start += strlen(text_marker);
++        const char* text_end = strchr(text_start, '"');
++
++        if (text_end) {
++            std::string text(text_start, text_end - text_start);
++            std::cout << text << std::endl;
++            return;
++        }
++    }
++    std::cout << json << std::endl;
++}
++
++int main(int argc, char* argv[]) {
++    if (argc != 3) {
++        std::cerr << "Usage: " << argv[0] << " model_path audio.wav" << std::endl;
++        return 1;
++    }
++
++    VoskModel* model = vosk_model_new(argv[1]);
++    if (!model) {
++        std::cerr << "Failed to create model" << std::endl;
++        return 1;
++    }
++
++    std::ifstream wavFile(argv[2], std::ios::binary);
++    if (!wavFile) {
++        std::cerr << "Failed to open file " << argv[2] << std::endl;
++        vosk_model_free(model);
++        return 1;
++    }
++
++    std::vector<unsigned char> header(44);
++    if (!wavFile.read(reinterpret_cast<char*>(header.data()), 44)) {
++        std::cerr << "Failed to read WAV header" << std::endl;
++        vosk_model_free(model);
++        return 1;
++    }
++
++    float sample_rate = static_cast<float>(
++        header[24] |
++        (header[25] << 8) |
++        (header[26] << 16) |
++        (header[27] << 24)
++    );
++
++    VoskRecognizer* recognizer = vosk_recognizer_new(model, sample_rate);
++    if (!recognizer) {
++        std::cerr << "Failed to create recognizer" << std::endl;
++        vosk_model_free(model);
++        return 1;
++    }
++
++    const size_t bufferSize = 3200;
++    std::vector<char> buffer(bufferSize);
++
++    while (wavFile) {
++        wavFile.read(buffer.data(), bufferSize);
++        size_t bytesRead = wavFile.gcount();
++        if (bytesRead == 0) break;
++
++        vosk_recognizer_accept_waveform(recognizer, buffer.data(), bytesRead);
++    }
++
++    const char* result = vosk_recognizer_final_result(recognizer);
++    print_text_only(result);
++
++    vosk_recognizer_free(recognizer);
++    vosk_model_free(model);
++
++    return 0;
++}
