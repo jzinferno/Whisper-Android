@@ -10,43 +10,43 @@ set -x
 PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 SCRIPTS_DIR=$(realpath `dirname $0`)
 
-for arch in arm64-v8a; do #armeabi-v7a arm64-v8a x86_64 x86; do
+for arch in armeabi-v7a arm64-v8a x86_64 x86; do
     case $arch in
         armeabi-v7a)
             BLAS_ARCH=ARMV7
-            CC=armv7a-linux-androideabi23-clang
-            AR=llvm-ar
+            CC=$(which armv7a-linux-androideabi23-clang)
+            CXX=$(which armv7a-linux-androideabi23-clang++)
             HOST=arm-linux-androideabi
-            RANLIB=llvm-ranlib
-            CXX=armv7a-linux-androideabi23-clang++
             ARCHFLAGS="-mfloat-abi=softfp -mfpu=neon"
+            FFMPEG_ARCH=arm
+            FFMPEG_FLAGS=""
             ;;
         arm64-v8a)
             BLAS_ARCH=CORTEXA57
-            CC=aarch64-linux-android23-clang
-            AR=llvm-ar
+            CC=$(which aarch64-linux-android23-clang)
+            CXX=$(which aarch64-linux-android23-clang++)
             HOST=aarch64-linux-android
-            RANLIB=llvm-ranlib
-            CXX=aarch64-linux-android23-clang++
             ARCHFLAGS=""
+            FFMPEG_ARCH=aarch64
+            FFMPEG_FLAGS=""
             ;;
         x86_64)
             BLAS_ARCH=ATOM
-            CC=x86_64-linux-android23-clang
-            AR=llvm-ar
+            CC=$(which x86_64-linux-android23-clang)
+            CXX=$(which x86_64-linux-android23-clang++)
             HOST=x86_64-linux-android
-            RANLIB=llvm-ranlib
-            CXX=x86_64-linux-android23-clang++
             ARCHFLAGS=""
+            FFMPEG_ARCH=x86_64
+            FFMPEG_FLAGS="--x86asmexe=yasm"
             ;;
         x86)
             BLAS_ARCH=ATOM
-            CC=i686-linux-android23-clang
-            AR=llvm-ar
+            CC=$(which i686-linux-android23-clang)
+            CXX=$(which i686-linux-android23-clang++)
             HOST=i686-linux-android
-            RANLIB=llvm-ranlib
-            CXX=i686-linux-android23-clang++
             ARCHFLAGS=""
+            FFMPEG_ARCH=i686
+            FFMPEG_FLAGS="--disable-asm"
             ;;
     esac
 
@@ -56,7 +56,7 @@ for arch in arm64-v8a; do #armeabi-v7a arm64-v8a x86_64 x86; do
      # OpenBLAS
     cd $WORKDIR
     git clone --depth=1 https://github.com/OpenMathLib/OpenBLAS -b v0.3.20
-    make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 NO_SHARED=1 -j$(nproc)
+    make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$(which llvm-ar) CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 NO_SHARED=1 -j$(nproc)
     make -C OpenBLAS install PREFIX=$WORKDIR/local NO_SHARED=1
 
     # CLAPACK
@@ -86,7 +86,7 @@ for arch in arm64-v8a; do #armeabi-v7a arm64-v8a x86_64 x86; do
     cd $WORKDIR
     git clone --depth=1 https://github.com/alphacep/kaldi -b vosk-android
     cd $WORKDIR/kaldi/src
-    CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING -Wno-unused-but-set-variable" ./configure --use-cuda=no \
+    CXX=$CXX AR=$(which llvm-ar) RANLIB=$(which llvm-ranlib) CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING -Wno-unused-but-set-variable" ./configure --use-cuda=no \
       --mathlib=OPENBLAS_CLAPACK --shared \
       --android-incdir=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include \
       --host=$HOST --openblas-root=${WORKDIR}/local \
@@ -94,6 +94,42 @@ for arch in arm64-v8a; do #armeabi-v7a arm64-v8a x86_64 x86; do
     make depend -j$(nproc)
     cd $WORKDIR/kaldi/src
     make online2 rnnlm -j$(nproc)
+
+    # FFmpeg
+    cd $WORKDIR
+    if [ ! -f ffmpeg-7.1.1.tar.xz ]; then
+        wget https://www.ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz
+    fi
+    rm -rf ffmpeg-7.1.1 && tar -xf ffmpeg-7.1.1.tar.xz && cd $WORKDIR/ffmpeg-7.1.1
+    ./configure \
+      --prefix=$WORKDIR/local \
+      --enable-cross-compile \
+      --target-os=android \
+      --arch=$FFMPEG_ARCH \
+      --sysroot=$(realpath "$(dirname `which lld`)"/../sysroot) \
+      --cc=$CC \
+      --cxx=$CXX \
+      --ld=$CC \
+      --as=$CC \
+      --ar=$(which llvm-ar) \
+      --nm=$(which llvm-nm) \
+      --ranlib=$(which llvm-ranlib) \
+      --strip=$(which llvm-strip) \
+      --extra-cflags="-w -Oz -fPIC -fno-asynchronous-unwind-tables -fno-exceptions -ffunction-sections -fdata-sections" \
+      --extra-ldflags="-Wl,-z,max-page-size=16384 -Wl,--gc-sections" \
+      --disable-network \
+      --disable-vulkan \
+      --disable-debug \
+      --disable-logging \
+      --disable-programs \
+      --disable-doc \
+      --enable-lto \
+      --enable-small \
+      --pkg-config=/usr/bin/pkg-config \
+      $FFMPEG_FLAGS
+    make clean
+    make -j$(nproc)
+    make install
 
     # Vosk-api
     cd $WORKDIR
@@ -103,8 +139,9 @@ for arch in arm64-v8a; do #armeabi-v7a arm64-v8a x86_64 x86; do
       KALDI_ROOT=${WORKDIR}/kaldi \
       OPENFST_ROOT=${WORKDIR}/local \
       OPENBLAS_ROOT=${WORKDIR}/local \
+      FFMPEG_ROOT=${WORKDIR}/local \
       CXX=$CXX \
-      EXTRA_LDFLAGS="-llog -static-libstdc++ -Wl,-soname,libvosk.so"
+      vosk-cli
 
     mkdir -p $SCRIPTS_DIR/jniLibs/$arch
     cp $WORKDIR/vosk-api/src/vosk-cli $SCRIPTS_DIR/jniLibs/$arch/libvosk.so

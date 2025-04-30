@@ -12,14 +12,12 @@
     <string name="lang_cn">cn</string>
     <string name="lang_uk">uk</string>
     <string name="download_vosk_model">Download Vosk Model</string>
-    <string name="select_audio_file">Select Audio/WAV File:</string>
     <string name="not_selected">Wav File is Not selected!</string>
     <string name="select_audio">Select</string>
     <string name="transcribe_whisper">Transcribe Whisper</string>
     <string name="transcribe_vosk">Transcribe Vosk</string>
     <string name="transcription_result">Transcription Result:</string>
     <string name="result_hint">Transcription result will appear here</string>
-
     <string name="invalid_file">Invalid file</string>
     <string name="error">Error: %1$s</string>
     <string name="error_downloading_model">Error downloading model: %1$s</string>
@@ -31,10 +29,11 @@
     <string name="transcribing">Transcribing...</string>
     <string name="transcribing_vosk">Transcribing with Vosk...</string>
     <string name="select_wav_file">Please select a WAV file</string>
-    <string name="select_wav_and_model">Please select a WAV audio file and download model</string>
-    <string name="select_wav_and_vosk_model">Please select a WAV audio file and download Vosk model</string>
     <string name="permissions_granted">Permissions granted</string>
     <string name="permissions_denied">Permissions denied</string>
     <string name="all_files_access_granted">All files access permission granted</string>
     <string name="all_files_access_denied">All files access permission denied</string>
+    <string name="select_audio_file">Select audio file</string>
+    <string name="select_audio_and_model">Select audio and Whisper model</string>
+    <string name="select_audio_and_vosk_model">Select audio and Vosk model</string>
 </resources>

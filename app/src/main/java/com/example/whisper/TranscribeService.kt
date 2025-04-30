@@ -28,7 +28,7 @@ class TranscribeService(private val context: Context) {
                 "--file $audioPath " +
                 "--language auto " +
                 "--no-timestamps " +
-                "--no-prints"
+                "--no-prints 2>/dev/null"
 
         Log.d(TAG, "Executing Whisper command: $command")
 
@@ -54,7 +54,7 @@ class TranscribeService(private val context: Context) {
             throw IllegalStateException("Audio file does not exist at path: $audioPath")
         }
 
-        val command = "${context.applicationInfo.nativeLibraryDir}/libvosk.so $modelPath $audioPath"
+        val command = "${context.applicationInfo.nativeLibraryDir}/libvosk.so $modelPath $audioPath 2>/dev/null"
         Log.d(TAG, "Executing Vosk command: $command")
 
         val shell = Shell.SH

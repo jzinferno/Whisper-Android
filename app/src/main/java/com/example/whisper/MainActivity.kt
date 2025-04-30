@@ -217,8 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "audio/wav"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("audio/wav", "audio/x-wav"))
+            type = "audio/*"  // Изменено с "audio/wav" на "audio/*" для поддержки всех аудиоформатов
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 putExtra(DocumentsContract.EXTRA_INITIAL_URI, "/storage/emulated/0".toUri())
             }
@@ -228,20 +227,36 @@ class MainActivity : AppCompatActivity() {
 
     private fun getRealPathFromURI(uri: Uri): String? {
         val mimeType = contentResolver.getType(uri)
-        if (mimeType != "audio/wav" && mimeType != "audio/x-wav") {
-            Toast.makeText(this, R.string.select_wav_file, Toast.LENGTH_SHORT).show()
+
+        if (mimeType == null || !mimeType.startsWith("audio/")) {
+            Toast.makeText(this, R.string.select_audio_file, Toast.LENGTH_SHORT).show()
             return null
         }
 
         return try {
             val inputStream = contentResolver.openInputStream(uri)
-            val tempFile = File(cacheDir, "temp_audio.wav")
+
+            val extension = when {
+                mimeType.contains("wav") -> "wav"
+                mimeType.contains("mp3") -> "mp3"
+                mimeType.contains("aac") -> "aac"
+                mimeType.contains("ogg") -> "ogg"
+                mimeType.contains("flac") -> "flac"
+                mimeType.contains("m4a") -> "m4a"
+                else -> "audio"
+            }
+            
+            val tempFile = File(cacheDir, "temp_audio.$extension")
 
             FileOutputStream(tempFile).use { fileOut ->
                 inputStream?.copyTo(fileOut)
             }
 
             inputStream?.close()
+
+            val displayName = uri.lastPathSegment?.substringAfterLast('/') ?: "audio.$extension"
+            Log.d(TAG, "Selected audio file: $displayName (path: ${tempFile.absolutePath})")
+            
             tempFile.absolutePath
         } catch (e: Exception) {
             Log.e(TAG, "Error processing file: ${e.message}")
@@ -256,7 +271,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun transcribeWithWhisper() {
         if (selectedAudioPath == null || !isModelDownloaded) {
-            Toast.makeText(this, R.string.select_wav_and_model, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.select_audio_and_model, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -265,7 +280,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun transcribeWithVosk() {
         if (selectedAudioPath == null || !isVoskModelDownloaded) {
-            Toast.makeText(this, R.string.select_wav_and_vosk_model, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.select_audio_and_vosk_model, Toast.LENGTH_SHORT).show()
             return
         }
 
