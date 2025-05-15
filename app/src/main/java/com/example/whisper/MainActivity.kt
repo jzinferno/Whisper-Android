@@ -217,7 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "audio/*"  // Изменено с "audio/wav" на "audio/*" для поддержки всех аудиоформатов
+            type = "audio/*"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 putExtra(DocumentsContract.EXTRA_INITIAL_URI, "/storage/emulated/0".toUri())
             }
